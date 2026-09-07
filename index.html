@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Dispatcher & Cooldown Tracker</title>
+  <style>
+    :root {
+      --bg: #0e0f12;
+      --card-bg: #18191f;
+      --card-border: #282a36;
+      --card-border-active: #4a4d61;
+      --primary: #8b5cf6;
+      --primary-hover: #7c3aed;
+      --accent-green: #10b981;
+      --accent-green-bg: rgba(16, 185, 129, 0.12);
+      --accent-orange: #f59e0b;
+      --accent-orange-bg: rgba(245, 158, 11, 0.12);
+      --accent-red: #ef4444;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background-color: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 32px 16px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 860px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 18px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .header-title h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-title p {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      margin-top: 4px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      font-family: inherit;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      padding: 9px 16px;
+      font-size: 0.88rem;
+    }
+    .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+
+    .btn-secondary {
+      background: #242630;
+      color: var(--text-main);
+      padding: 8px 14px;
+      font-size: 0.82rem;
+      border: 1px solid var(--card-border);
+    }
+    .btn-secondary:hover { background: #303340; }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #fca5a5;
+      padding: 6px 10px;
+      font-size: 0.78rem;
+    }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.3); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 18px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color 0.2s ease;
+    }
+
+    .card.cooldown-active {
+      border-color: var(--card-border-active);
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .acc-name {
+      font-weight: 600;
+      font-size: 1rem;
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      outline: none;
+      width: 150px;
+    }
+    .acc-name:focus {
+      border-bottom: 1px solid var(--primary);
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      padding: 4px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    .badge-ready {
+      background: var(--accent-green-bg);
+      color: var(--accent-green);
+    }
+    .badge-cooldown {
+      background: var(--accent-orange-bg);
+      color: var(--accent-orange);
+    }
+
+    .timer-display {
+      font-size: 1.6rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      margin: 10px 0 6px;
+      color: #ffffff;
+    }
+
+    .progress-bar-wrap {
+      width: 100%;
+      height: 6px;
+      background: #282a36;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .progress-bar {
+      height: 100%;
+      background: var(--accent-orange);
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    .card-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .card-actions-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-drain {
+      width: 100%;
+      padding: 10px;
+      font-weight: 600;
+      background: #7c3aed;
+      color: white;
+    }
+    .btn-drain:hover { background: #6d28d9; }
+
+    .open-claude {
+      display: inline-block;
+      text-align: center;
+      text-decoration: none;
+      padding: 8px;
+      background: #272730;
+      color: #c4b5fd;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+    .open-claude:hover { background: #32323e; color: #fff; }
+
+    .section-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .handover-box {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .handover-box p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .templates {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .tmpl-btn {
+      font-size: 0.78rem;
+      padding: 5px 10px;
+      border-radius: 6px;
+      background: #252631;
+      color: #d1d5db;
+      border: 1px solid #333644;
+      cursor: pointer;
+    }
+    .tmpl-btn:hover { background: #313344; color: #fff; }
+
+    textarea {
+      width: 100%;
+      height: 120px;
+      background: #111217;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      color: #fff;
+      padding: 12px;
+      font-family: inherit;
+      font-size: 0.88rem;
+      resize: vertical;
+      line-height: 1.4;
+      outline: none;
+    }
+    textarea:focus { border-color: var(--primary); }
+
+    .copy-btn {
+      margin-top: 12px;
+      width: 100%;
+      background: var(--accent-green);
+      color: #064e3b;
+      font-weight: 700;
+      padding: 12px;
+      font-size: 0.92rem;
+    }
+    .copy-btn:hover { background: #34d399; }
+
+    /* Toast Notification */
+    #toast {
+      visibility: hidden;
+      min-width: 240px;
+      background-color: #1f2937;
+      color: #f3f4f6;
+      text-align: center;
+      border-radius: 8px;
+      padding: 12px 18px;
+      position: fixed;
+      z-index: 1000;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.88rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      border: 1px solid #374151;
+      transition: visibility 0.2s, opacity 0.2s ease-in-out;
+      opacity: 0;
+    }
+    #toast.show {
+      visibility: visible;
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="header-title">
+        <h1>⚡ Claude Rotator Hub</h1>
+        <p>Менеджер ротации бесплатных аккаунтов и таймеров кулдауна</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn-secondary" onclick="addAccount()">+ Добавить аккаунт</button>
+        <button class="btn-secondary" onclick="requestNotificationPermission()">🔔 Звук / Уведомления</button>
+      </div>
+    </header>
+
+    <div class="grid" id="accountsGrid"></div>
+
+    <div class="section-title">
+      <span>🚀 Бесшовный перенос контекста (Handover)</span>
+    </div>
+
+    <div class="handover-box">
+      <p>Выберите шаблон или вставьте выжимку из умирающего диалога. Генератор оформит готовый системный промпт для нового чата:</p>
+      <div class="templates">
+        <button class="tmpl-btn" onclick="applyTemplate('code')">💻 Кодинг / Рефакторинг</button>
+        <button class="tmpl-btn" onclick="applyTemplate('text')">📝 Текст / Перевод</button>
+        <button class="tmpl-btn" onclick="applyTemplate('analysis')">📊 Анализ / Брейншторм</button>
+      </div>
+      <textarea id="context-input" placeholder="Вставьте сюда статус задачи, принятые решения, актуальный код или структуру..."></textarea>
+      <button class="copy-btn" onclick="copyHandoverPrompt()">📋 Скопировать готовый промпт для нового чата</button>
+    </div>
+  </div>
+
+  <div id="toast">Контекст скопирован в буфер!</div>
+
+  <script>
+    const COOLDOWN_MS = 5 * 60 * 60 * 1000; // 5 часов
+    let accounts = JSON.parse(localStorage.getItem('claude_hub_accounts')) || [
+      { id: 'acc_1', name: 'Профиль #1', unlockTime: null },
+      { id: 'acc_2', name: 'Профиль #2', unlockTime: null },
+      { id: 'acc_3', name: 'Профиль #3', unlockTime: null }
+    ];
+
+    function saveState() {
+      localStorage.setItem('claude_hub_accounts', JSON.stringify(accounts));
+    }
+
+    function showToast(text) {
+      const toast = document.getElementById("toast");
+      toast.textContent = text;
+      toast.className = "show";
+      setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2500);
+    }
+
+    function requestNotificationPermission() {
+      if (!("Notification" in window)) {
+        showToast("Браузер не поддерживает системные уведомления");
+        return;
+      }
+      Notification.requestPermission().then(permission => {
+        if (permission === "granted") {
+          showToast("Уведомления включены! При разблокировке придет сигнал.");
+        } else {
+          showToast("Доступ к уведомлениям отклонен");
+        }
+      });
+    }
+
+    function playBeep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 587.33; // D5
+        osc.type = "sine";
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.4);
+      } catch (e) {}
+    }
+
+    function renderAccounts() {
+      const grid = document.getElementById('accountsGrid');
+      grid.innerHTML = '';
+
+      accounts.forEach((acc, index) => {
+        const now = Date.now();
+        const isCooldown = acc.unlockTime && acc.unlockTime > now;
+        const diff = isCooldown ? acc.unlockTime - now : 0;
+        
+        const card = document.createElement('div');
+        card.className = `card ${isCooldown ? 'cooldown-active' : ''}`;
+
+        const h = Math.floor(diff / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        const timeStr = isCooldown 
+          ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` 
+          : 'ГОТОВ';
+
+        let progressPct = 0;
+        if (isCooldown) {
+          const elapsed = COOLDOWN_MS - diff;
+          progressPct = Math.min(100, Math.max(0, (elapsed / COOLDOWN_MS) * 100));
+        }
+
+        card.innerHTML = `
+          <div>
+            <div class="card-top">
+              <input type="text" class="acc-name" value="${acc.name}" onchange="updateName('${acc.id}', this.value)" title="Нажмите, чтобы переименовать">
+              <span class="badge ${isCooldown ? 'badge-cooldown' : 'badge-ready'}">
+                ${isCooldown ? '⏳ Остывает' : '🟢 Доступен'}
+              </span>
+            </div>
+            <div class="timer-display" style="${!isCooldown ? 'color: var(--accent-green);' : ''}">${timeStr}</div>
+            <div class="progress-bar-wrap">
+              <div class="progress-bar" style="width: ${progressPct}%;"></div>
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="btn-drain" onclick="startCooldown('${acc.id}')">
+              ${isCooldown ? '🔄 Перезапустить (5ч)' : '⚡ Слить лимит (5ч)'}
+            </button>
+            <div class="card-actions-row">
+              <a href="https://claude.ai/new" target="_blank" class="open-claude" style="flex:1;">🔗 В Claude</a>
+              <button class="btn-secondary" onclick="resetTimer('${acc.id}')" title="Сбросить таймер">Сброс</button>
+              ${accounts.length > 1 ? `<button class="btn-danger" onclick="removeAccount('${acc.id}')" title="Удалить карточку">✕</button>` : ''}
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function updateName(id, newName) {
+      const acc = accounts.find(a => a.id === id);
+      if (acc) {
+        acc.name = newName.trim() || 'Профиль';
+        saveState();
+      }
+    }
+
+    function startCooldown(id) {
+      const acc = accounts.find(a => a.id === id);
+      if (acc) {
+        acc.unlockTime = Date.now() + COOLDOWN_MS;
+        saveState();
+        renderAccounts();
+        showToast(`${acc.name}: таймер на 5 часов запущен`);
+      }
+    }
+
+    function resetTimer(id) {
+      const acc = accounts.find(a => a.id === id);
+      if (acc) {
+        acc.unlockTime = null;
+        saveState();
+        renderAccounts();
+        showToast(`${acc.name}: готов к работе`);
+      }
+    }
+
+    function addAccount() {
+      const newId = 'acc_' + Date.now();
+      accounts.push({
+        id: newId,
+        name: `Профиль #${accounts.length + 1}`,
+        unlockTime: null
+      });
+      saveState();
+      renderAccounts();
+    }
+
+    function removeAccount(id) {
+      if (confirm('Удалить эту карточку аккаунта?')) {
+        accounts = accounts.filter(a => a.id !== id);
+        saveState();
+        renderAccounts();
+      }
+    }
+
+    function applyTemplate(type) {
+      const area = document.getElementById('context-input');
+      if (type === 'code') {
+        area.value = `[СТЕК]: \n[ТЕКУЩАЯ ЗАДАЧА]: \n[ЧТО УЖЕ СДЕЛАНО]: \n[ОШИБКА / СЛЕДУЮЩИЙ ШАГ]: \n[АКТУАЛЬНЫЙ КОД]:\n`;
+      } else if (type === 'text') {
+        area.value = `[ЦЕЛЬ ТЕКСТА]: \n[ЦЕЛЕВАЯ АУДИТОРИЯ И ТОН]: \n[СТРУКТУРА / ТЕЗИСЫ]: \n[ГОТОВЫЙ БЛОК]: \n[ЧТО ПИШЕМ ДАЛЬШЕ]:\n`;
+      } else if (type === 'analysis') {
+        area.value = `[ОБЪЕКТ АНАЛИЗА]: \n[ВХОДНЫЕ ДАННЫЕ]: \n[УЖЕ ВЫЯВЛЕННЫЕ ВЫВОДЫ]: \n[ВОПРОС ДЛЯ РАЗБОРА]:\n`;
+      }
+      area.focus();
+    }
+
+    function copyHandoverPrompt() {
+      const rawText = document.getElementById('context-input').value.trim();
+      if (!rawText) {
+        showToast("Сначала вставьте текст контекста!");
+        return;
+      }
+
+      const finalPrompt = `Мы продолжаем непрерывную сессию работы над проектом. Ниже передан актуальный технический контекст из предыдущего чата:\n\n---\n${rawText}\n---\n\nИзучи переданный контекст, подтверди готовность кратко в одном предложении и сразу переходи к выполнению следующего шага.`;
+
+      navigator.clipboard.writeText(finalPrompt).then(() => {
+        showToast("Готовый промпт скопирован в буфер!");
+      }).catch(err => {
+        showToast("Ошибка копирования в буфер");
+      });
+    }
+
+    // Фоновый тикер проверки кулдаунов
+    setInterval(() => {
+      let stateChanged = false;
+      const now = Date.now();
+      accounts.forEach(acc => {
+        if (acc.unlockTime && acc.unlockTime <= now) {
+          acc.unlockTime = null;
+          stateChanged = true;
+          playBeep();
+          if (Notification.permission === "granted") {
+            new Notification("Claude Rotator Hub", {
+              body: `${acc.name} остыл и снова готов к работе!`,
+              icon: "https://claude.ai/favicon.ico"
+            });
+          }
+        }
+      });
+      if (stateChanged) saveState();
+      renderAccounts();
+    }, 1000);
+
+    renderAccounts();
+  </script>
+</body>
+</html>
