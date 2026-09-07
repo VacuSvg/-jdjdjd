@@ -2,317 +2,265 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Claude Dispatcher & Cooldown Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Claude Hub</title>
   <style>
     :root {
-      --bg: #0e0f12;
-      --card-bg: #18191f;
-      --card-border: #282a36;
-      --card-border-active: #4a4d61;
-      --primary: #8b5cf6;
-      --primary-hover: #7c3aed;
-      --accent-green: #10b981;
-      --accent-green-bg: rgba(16, 185, 129, 0.12);
-      --accent-orange: #f59e0b;
-      --accent-orange-bg: rgba(245, 158, 11, 0.12);
-      --accent-red: #ef4444;
-      --text-main: #f3f4f6;
-      --text-muted: #9ca3af;
-      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --bg: #09090b;
+      --card-bg: #121214;
+      --border: #222226;
+      --border-hover: #333338;
+      --yellow: #facc15;
+      --yellow-hover: #eab308;
+      --yellow-dim: rgba(250, 204, 21, 0.08);
+      --yellow-border: rgba(250, 204, 21, 0.25);
+      --text: #f4f4f5;
+      --text-muted: #71717a;
+      --text-dim: #a1a1aa;
+      --red: #ef4444;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: var(--font);
-      background-color: var(--bg);
-      color: var(--text-main);
+      background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
-      padding: 32px 16px;
+      padding: 18px 14px;
       display: flex;
       justify-content: center;
+      -webkit-tap-highlight-color: transparent;
     }
 
-    .container {
-      width: 100%;
-      max-width: 860px;
-    }
+    .container { width: 100%; max-width: 580px; }
 
+    /* Header */
     header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 28px;
-      border-bottom: 1px solid var(--card-border);
-      padding-bottom: 18px;
-      flex-wrap: wrap;
-      gap: 12px;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
     }
-
     .header-title h1 {
-      font-size: 1.5rem;
+      font-size: 1.15rem;
       font-weight: 700;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.01em;
+      color: #fff;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 6px;
     }
+    .header-title h1 span { color: var(--yellow); }
+    .header-actions { display: flex; gap: 6px; }
 
-    .header-title p {
-      color: var(--text-muted);
-      font-size: 0.88rem;
-      margin-top: 4px;
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 10px;
-    }
-
+    /* Buttons */
     button {
       font-family: inherit;
-      border: none;
-      border-radius: 8px;
+      border: 1px solid transparent;
+      border-radius: 6px;
       cursor: pointer;
-      font-weight: 500;
+      font-weight: 600;
       transition: all 0.15s ease;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      line-height: 1;
     }
-
-    .btn-primary {
-      background: var(--primary);
-      color: white;
-      padding: 9px 16px;
-      font-size: 0.88rem;
-    }
-    .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
-
-    .btn-secondary {
-      background: #242630;
-      color: var(--text-main);
-      padding: 8px 14px;
-      font-size: 0.82rem;
-      border: 1px solid var(--card-border);
-    }
-    .btn-secondary:hover { background: #303340; }
-
-    .btn-danger {
-      background: rgba(239, 68, 68, 0.15);
-      color: #fca5a5;
-      padding: 6px 10px;
+    .btn-top {
+      background: #18181b;
+      color: var(--text-dim);
+      border-color: var(--border);
+      padding: 7px 11px;
       font-size: 0.78rem;
     }
-    .btn-danger:hover { background: rgba(239, 68, 68, 0.3); }
+    .btn-top:hover { background: #27272a; color: #fff; }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-
+    /* Grid & Cards */
+    .grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
     .card {
       background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 18px;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
       transition: border-color 0.2s ease;
     }
-
-    .card.cooldown-active {
-      border-color: var(--card-border-active);
-    }
+    .card.cooldown-active { border-color: var(--yellow-border); }
 
     .card-top {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 12px;
+      align-items: center;
+      margin-bottom: 8px;
     }
-
     .acc-name {
       font-weight: 600;
-      font-size: 1rem;
+      font-size: 0.88rem;
       background: transparent;
       border: none;
-      color: var(--text-main);
+      color: var(--text);
       outline: none;
-      width: 150px;
+      width: 140px;
     }
-    .acc-name:focus {
-      border-bottom: 1px solid var(--primary);
-    }
+    .acc-name:focus { border-bottom: 1px solid var(--yellow); }
 
     .badge {
-      font-size: 0.75rem;
-      padding: 4px 8px;
-      border-radius: 20px;
+      font-size: 0.7rem;
+      padding: 3px 7px;
+      border-radius: 4px;
       font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
     }
-    .badge-ready {
-      background: var(--accent-green-bg);
-      color: var(--accent-green);
-    }
-    .badge-cooldown {
-      background: var(--accent-orange-bg);
-      color: var(--accent-orange);
-    }
+    .badge-ready { background: var(--yellow-dim); color: var(--yellow); border: 1px solid var(--yellow-border); }
+    .badge-cooldown { background: #1c1c20; color: var(--text-muted); border: 1px solid var(--border); }
 
+    .timer-wrap {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
     .timer-display {
-      font-size: 1.6rem;
+      font-size: 1.15rem;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
-      margin: 10px 0 6px;
-      color: #ffffff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #fff;
     }
+    .timer-display.ready { color: var(--yellow); }
 
     .progress-bar-wrap {
       width: 100%;
-      height: 6px;
-      background: #282a36;
-      border-radius: 3px;
+      height: 3px;
+      background: #1c1c20;
+      border-radius: 2px;
       overflow: hidden;
-      margin-bottom: 16px;
+      margin-bottom: 10px;
     }
     .progress-bar {
       height: 100%;
-      background: var(--accent-orange);
+      background: var(--yellow);
       width: 0%;
-      transition: width 0.4s ease;
+      transition: width 0.3s linear;
     }
 
+    /* Card Actions Inline */
     .card-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 6px;
     }
-
-    .card-actions-row {
-      display: flex;
-      gap: 8px;
-    }
-
     .btn-drain {
-      width: 100%;
-      padding: 10px;
-      font-weight: 600;
-      background: #7c3aed;
-      color: white;
+      background: var(--yellow);
+      color: #000;
+      padding: 8px 10px;
+      font-size: 0.78rem;
     }
-    .btn-drain:hover { background: #6d28d9; }
+    .btn-drain:hover { background: var(--yellow-hover); }
+    .btn-drain.cooling {
+      background: #18181b;
+      color: var(--yellow);
+      border: 1px solid var(--yellow-border);
+    }
 
-    .open-claude {
-      display: inline-block;
-      text-align: center;
+    .btn-action {
+      background: #18181b;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      font-size: 0.78rem;
       text-decoration: none;
-      padding: 8px;
-      background: #272730;
-      color: #c4b5fd;
-      border-radius: 6px;
-      font-size: 0.8rem;
-      font-weight: 500;
-      transition: background 0.15s;
     }
-    .open-claude:hover { background: #32323e; color: #fff; }
+    .btn-action:hover { background: #27272a; color: #fff; }
+    .btn-delete { color: #71717a; }
+    .btn-delete:hover { color: var(--red); border-color: rgba(239, 68, 68, 0.3); }
 
-    .section-title {
-      font-size: 1.15rem;
-      font-weight: 600;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
+    /* Handover Box */
     .handover-box {
       background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
     }
-
-    .handover-box p {
+    .section-title {
       font-size: 0.85rem;
-      color: var(--text-muted);
-      margin-bottom: 12px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-
     .templates {
       display: flex;
-      gap: 8px;
+      gap: 6px;
+      margin-bottom: 10px;
       flex-wrap: wrap;
-      margin-bottom: 12px;
     }
-
     .tmpl-btn {
-      font-size: 0.78rem;
-      padding: 5px 10px;
-      border-radius: 6px;
-      background: #252631;
-      color: #d1d5db;
-      border: 1px solid #333644;
+      font-size: 0.72rem;
+      padding: 5px 8px;
+      border-radius: 4px;
+      background: #18181b;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
       cursor: pointer;
     }
-    .tmpl-btn:hover { background: #313344; color: #fff; }
+    .tmpl-btn:hover { color: var(--yellow); border-color: var(--yellow-border); }
 
     textarea {
       width: 100%;
-      height: 120px;
-      background: #111217;
-      border: 1px solid var(--card-border);
-      border-radius: 8px;
+      height: 85px;
+      background: #09090b;
+      border: 1px solid var(--border);
+      border-radius: 6px;
       color: #fff;
-      padding: 12px;
+      padding: 10px;
       font-family: inherit;
-      font-size: 0.88rem;
+      font-size: 0.82rem;
       resize: vertical;
       line-height: 1.4;
       outline: none;
     }
-    textarea:focus { border-color: var(--primary); }
+    textarea:focus { border-color: var(--yellow-border); }
 
     .copy-btn {
-      margin-top: 12px;
+      margin-top: 10px;
       width: 100%;
-      background: var(--accent-green);
-      color: #064e3b;
+      background: #18181b;
+      border: 1px solid var(--yellow-border);
+      color: var(--yellow);
       font-weight: 700;
-      padding: 12px;
-      font-size: 0.92rem;
+      padding: 10px;
+      font-size: 0.82rem;
     }
-    .copy-btn:hover { background: #34d399; }
+    .copy-btn:hover { background: var(--yellow); color: #000; }
 
-    /* Toast Notification */
+    /* Toast */
     #toast {
       visibility: hidden;
-      min-width: 240px;
-      background-color: #1f2937;
-      color: #f3f4f6;
+      min-width: 200px;
+      background-color: #18181b;
+      color: var(--yellow);
+      border: 1px solid var(--yellow-border);
       text-align: center;
-      border-radius: 8px;
-      padding: 12px 18px;
+      border-radius: 6px;
+      padding: 10px 14px;
       position: fixed;
       z-index: 1000;
-      bottom: 30px;
+      bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      font-size: 0.88rem;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-      border: 1px solid #374151;
-      transition: visibility 0.2s, opacity 0.2s ease-in-out;
+      font-size: 0.8rem;
+      font-weight: 600;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.8);
       opacity: 0;
+      transition: opacity 0.2s ease;
     }
-    #toast.show {
-      visibility: visible;
-      opacity: 1;
-    }
+    #toast.show { visibility: visible; opacity: 1; }
   </style>
 </head>
 <body>
@@ -320,37 +268,32 @@
   <div class="container">
     <header>
       <div class="header-title">
-        <h1>⚡ Claude Rotator Hub</h1>
-        <p>Менеджер ротации бесплатных аккаунтов и таймеров кулдауна</p>
+        <h1>Claude <span>Hub</span></h1>
       </div>
       <div class="header-actions">
-        <button class="btn-secondary" onclick="addAccount()">+ Добавить аккаунт</button>
-        <button class="btn-secondary" onclick="requestNotificationPermission()">🔔 Звук / Уведомления</button>
+        <button class="btn-top" onclick="addAccount()">+ Слот</button>
+        <button class="btn-top" onclick="requestNotificationPermission()">🔔</button>
       </div>
     </header>
 
     <div class="grid" id="accountsGrid"></div>
 
-    <div class="section-title">
-      <span>🚀 Бесшовный перенос контекста (Handover)</span>
-    </div>
-
     <div class="handover-box">
-      <p>Выберите шаблон или вставьте выжимку из умирающего диалога. Генератор оформит готовый системный промпт для нового чата:</p>
+      <div class="section-title">Перенос контекста</div>
       <div class="templates">
-        <button class="tmpl-btn" onclick="applyTemplate('code')">💻 Кодинг / Рефакторинг</button>
-        <button class="tmpl-btn" onclick="applyTemplate('text')">📝 Текст / Перевод</button>
-        <button class="tmpl-btn" onclick="applyTemplate('analysis')">📊 Анализ / Брейншторм</button>
+        <button class="tmpl-btn" onclick="applyTemplate('code')">Кодинг</button>
+        <button class="tmpl-btn" onclick="applyTemplate('text')">Текст</button>
+        <button class="tmpl-btn" onclick="applyTemplate('analysis')">Анализ</button>
       </div>
-      <textarea id="context-input" placeholder="Вставьте сюда статус задачи, принятые решения, актуальный код или структуру..."></textarea>
-      <button class="copy-btn" onclick="copyHandoverPrompt()">📋 Скопировать готовый промпт для нового чата</button>
+      <textarea id="context-input" placeholder="Вставьте технический бриф задачи..."></textarea>
+      <button class="copy-btn" onclick="copyHandoverPrompt()">Скопировать бриф в буфер</button>
     </div>
   </div>
 
-  <div id="toast">Контекст скопирован в буфер!</div>
+  <div id="toast">Скопировано</div>
 
   <script>
-    const COOLDOWN_MS = 5 * 60 * 60 * 1000; // 5 часов
+    const COOLDOWN_MS = 5 * 60 * 60 * 1000;
     let accounts = JSON.parse(localStorage.getItem('claude_hub_accounts')) || [
       { id: 'acc_1', name: 'Профиль #1', unlockTime: null },
       { id: 'acc_2', name: 'Профиль #2', unlockTime: null },
@@ -365,20 +308,16 @@
       const toast = document.getElementById("toast");
       toast.textContent = text;
       toast.className = "show";
-      setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2500);
+      setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2000);
     }
 
     function requestNotificationPermission() {
       if (!("Notification" in window)) {
-        showToast("Браузер не поддерживает системные уведомления");
+        showToast("Уведомления не поддерживаются");
         return;
       }
       Notification.requestPermission().then(permission => {
-        if (permission === "granted") {
-          showToast("Уведомления включены! При разблокировке придет сигнал.");
-        } else {
-          showToast("Доступ к уведомлениям отклонен");
-        }
+        showToast(permission === "granted" ? "Уведомления включены" : "Уведомления отклонены");
       });
     }
 
@@ -389,12 +328,12 @@
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.frequency.value = 587.33; // D5
+        osc.frequency.value = 520;
         osc.type = "sine";
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        gain.gain.setValueAtTime(0.08, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
         osc.start();
-        osc.stop(ctx.currentTime + 0.4);
+        osc.stop(ctx.currentTime + 0.3);
       } catch (e) {}
     }
 
@@ -402,7 +341,7 @@
       const grid = document.getElementById('accountsGrid');
       grid.innerHTML = '';
 
-      accounts.forEach((acc, index) => {
+      accounts.forEach((acc) => {
         const now = Date.now();
         const isCooldown = acc.unlockTime && acc.unlockTime > now;
         const diff = isCooldown ? acc.unlockTime - now : 0;
@@ -415,7 +354,7 @@
         const s = Math.floor((diff % (1000 * 60)) / 1000);
         const timeStr = isCooldown 
           ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` 
-          : 'ГОТОВ';
+          : 'ГОТОВ К РАБОТЕ';
 
         let progressPct = 0;
         if (isCooldown) {
@@ -424,27 +363,25 @@
         }
 
         card.innerHTML = `
-          <div>
-            <div class="card-top">
-              <input type="text" class="acc-name" value="${acc.name}" onchange="updateName('${acc.id}', this.value)" title="Нажмите, чтобы переименовать">
-              <span class="badge ${isCooldown ? 'badge-cooldown' : 'badge-ready'}">
-                ${isCooldown ? '⏳ Остывает' : '🟢 Доступен'}
-              </span>
-            </div>
-            <div class="timer-display" style="${!isCooldown ? 'color: var(--accent-green);' : ''}">${timeStr}</div>
-            <div class="progress-bar-wrap">
-              <div class="progress-bar" style="width: ${progressPct}%;"></div>
-            </div>
+          <div class="card-top">
+            <input type="text" class="acc-name" value="${acc.name}" onchange="updateName('${acc.id}', this.value)">
+            <span class="badge ${isCooldown ? 'badge-cooldown' : 'badge-ready'}">
+              ${isCooldown ? 'Кулдаун' : 'Готов'}
+            </span>
+          </div>
+          <div class="timer-wrap">
+            <div class="timer-display ${!isCooldown ? 'ready' : ''}">${timeStr}</div>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" style="width: ${progressPct}%;"></div>
           </div>
           <div class="card-actions">
-            <button class="btn-drain" onclick="startCooldown('${acc.id}')">
-              ${isCooldown ? '🔄 Перезапустить (5ч)' : '⚡ Слить лимит (5ч)'}
+            <button class="btn-drain ${isCooldown ? 'cooling' : ''}" onclick="startCooldown('${acc.id}')">
+              ${isCooldown ? 'Сбросить на 5ч' : 'Слить лимит (5ч)'}
             </button>
-            <div class="card-actions-row">
-              <a href="https://claude.ai/new" target="_blank" class="open-claude" style="flex:1;">🔗 В Claude</a>
-              <button class="btn-secondary" onclick="resetTimer('${acc.id}')" title="Сбросить таймер">Сброс</button>
-              ${accounts.length > 1 ? `<button class="btn-danger" onclick="removeAccount('${acc.id}')" title="Удалить карточку">✕</button>` : ''}
-            </div>
+            <a href="https://claude.ai/new" target="_blank" class="btn-action">↗ Claude</a>
+            <button class="btn-action" onclick="resetTimer('${acc.id}')" title="Сброс">↺</button>
+            ${accounts.length > 1 ? `<button class="btn-action btn-delete" onclick="removeAccount('${acc.id}')">✕</button>` : ''}
           </div>
         `;
         grid.appendChild(card);
@@ -465,7 +402,7 @@
         acc.unlockTime = Date.now() + COOLDOWN_MS;
         saveState();
         renderAccounts();
-        showToast(`${acc.name}: таймер на 5 часов запущен`);
+        showToast("Таймер запущен (5ч)");
       }
     }
 
@@ -475,7 +412,7 @@
         acc.unlockTime = null;
         saveState();
         renderAccounts();
-        showToast(`${acc.name}: готов к работе`);
+        showToast("Сброшено");
       }
     }
 
@@ -483,7 +420,7 @@
       const newId = 'acc_' + Date.now();
       accounts.push({
         id: newId,
-        name: `Профиль #${accounts.length + 1}`,
+        name: `Слот #${accounts.length + 1}`,
         unlockTime: null
       });
       saveState();
@@ -491,21 +428,19 @@
     }
 
     function removeAccount(id) {
-      if (confirm('Удалить эту карточку аккаунта?')) {
-        accounts = accounts.filter(a => a.id !== id);
-        saveState();
-        renderAccounts();
-      }
+      accounts = accounts.filter(a => a.id !== id);
+      saveState();
+      renderAccounts();
     }
 
     function applyTemplate(type) {
       const area = document.getElementById('context-input');
       if (type === 'code') {
-        area.value = `[СТЕК]: \n[ТЕКУЩАЯ ЗАДАЧА]: \n[ЧТО УЖЕ СДЕЛАНО]: \n[ОШИБКА / СЛЕДУЮЩИЙ ШАГ]: \n[АКТУАЛЬНЫЙ КОД]:\n`;
+        area.value = `[СТЕК]: \n[ЗАДАЧА]: \n[ЧТО СДЕЛАНО]: \n[СЛЕДУЮЩИЙ ШАГ]: \n[КОД]:\n`;
       } else if (type === 'text') {
-        area.value = `[ЦЕЛЬ ТЕКСТА]: \n[ЦЕЛЕВАЯ АУДИТОРИЯ И ТОН]: \n[СТРУКТУРА / ТЕЗИСЫ]: \n[ГОТОВЫЙ БЛОК]: \n[ЧТО ПИШЕМ ДАЛЬШЕ]:\n`;
+        area.value = `[ЦЕЛЬ]: \n[ТОН]: \n[ТЕЗИСЫ]: \n[ТЕКСТ]:\n`;
       } else if (type === 'analysis') {
-        area.value = `[ОБЪЕКТ АНАЛИЗА]: \n[ВХОДНЫЕ ДАННЫЕ]: \n[УЖЕ ВЫЯВЛЕННЫЕ ВЫВОДЫ]: \n[ВОПРОС ДЛЯ РАЗБОРА]:\n`;
+        area.value = `[ОБЪЕКТ]: \n[ДАННЫЕ]: \n[ВОПРОС]:\n`;
       }
       area.focus();
     }
@@ -513,20 +448,15 @@
     function copyHandoverPrompt() {
       const rawText = document.getElementById('context-input').value.trim();
       if (!rawText) {
-        showToast("Сначала вставьте текст контекста!");
+        showToast("Введите текст брифа");
         return;
       }
-
-      const finalPrompt = `Мы продолжаем непрерывную сессию работы над проектом. Ниже передан актуальный технический контекст из предыдущего чата:\n\n---\n${rawText}\n---\n\nИзучи переданный контекст, подтверди готовность кратко в одном предложении и сразу переходи к выполнению следующего шага.`;
-
+      const finalPrompt = `Мы продолжаем непрерывную сессию. Контекст из предыдущего чата:\n\n---\n${rawText}\n---\n\nИзучи бриф, подтверди готовность одним предложением и переходи к выполнению.`;
       navigator.clipboard.writeText(finalPrompt).then(() => {
-        showToast("Готовый промпт скопирован в буфер!");
-      }).catch(err => {
-        showToast("Ошибка копирования в буфер");
+        showToast("Бриф скопирован!");
       });
     }
 
-    // Фоновый тикер проверки кулдаунов
     setInterval(() => {
       let stateChanged = false;
       const now = Date.now();
@@ -536,10 +466,7 @@
           stateChanged = true;
           playBeep();
           if (Notification.permission === "granted") {
-            new Notification("Claude Rotator Hub", {
-              body: `${acc.name} остыл и снова готов к работе!`,
-              icon: "https://claude.ai/favicon.ico"
-            });
+            new Notification("Claude Hub", { body: `${acc.name} готов к работе!` });
           }
         }
       });
